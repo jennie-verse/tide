@@ -653,6 +653,7 @@ function cache() {
 
 function switchTab(tab, opts) {
   const silent = opts && opts.silent;
+  const initial = opts && opts.initial;
   el['tab-clips'].setAttribute('aria-selected', String(tab === 'clips'));
   el['tab-dump'].setAttribute('aria-selected', String(tab === 'dump'));
   el['panel-clips'].classList.toggle('hidden', tab !== 'clips');
@@ -662,12 +663,17 @@ function switchTab(tab, opts) {
   el['btn-clear-search'].classList.add('hidden');
   if (!silent) { state.settings.lastTab = tab; saveState(); }
   render();
-  // Plan 6-3: entering Dump should put the cursor in the input immediately —
-  // one less tap before writing. Not on page load with no user gesture yet
-  // (iOS ignores/queues focus without one anyway, and it would pop the
-  // keyboard unasked for on first paint).
-  if (tab === 'dump' && !opts?.initial) {
-    setTimeout(() => el['dump-input'].focus(), 30);
+  // Plan 6-3: entering Dump should put the cursor in the input immediately.
+  // iOS Safari only opens the keyboard for focus() called SYNCHRONOUSLY
+  // inside the click handler's own call stack — a setTimeout (even 0ms)
+  // detaches it from the user gesture and the keyboard silently refuses to
+  // open. The panel is already un-hidden above (synchronously, in this same
+  // stack), so calling focus() here — no timer, no await between the click
+  // and this line — satisfies both conditions at once. Skipped on the
+  // initial page-load restore, where there's no click to attach to and
+  // popping the keyboard unasked for would be unwelcome.
+  if (tab === 'dump' && !initial) {
+    el['dump-input'].focus();
   }
 }
 

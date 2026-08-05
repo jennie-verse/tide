@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A seven-day desk for phrases you reuse and thoughts you dump.">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#EFB3C1">
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tide">
+<meta name="format-detection" content="telephone=no">
+
+<link rel="stylesheet" href="./app.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<noscript>
+  <p class="noscript">Tide needs JavaScript. Please enable it in Safari settings.</p>
+</noscript>
+
+<header class="app-header">
+  <h1 class="app-title">Tide</h1>
+  <button type="button" class="icon-btn" id="btn-settings" aria-label="Open settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.5 14.3a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.55V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1.03H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08a1.7 1.7 0 0 0 1.03-1.55V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1.03 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.55 1.03H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.4 1.02Z"/></svg>
+  </button>
+</header>
+
+<main id="main" class="wrap">
+
+  <div class="tabbar" role="tablist" aria-label="Sections">
+    <button type="button" class="tab-btn" id="tab-clips" role="tab" aria-selected="true" aria-controls="panel-clips">Clips</button>
+    <button type="button" class="tab-btn" id="tab-dump" role="tab" aria-selected="false" aria-controls="panel-dump">
+      Dump <span class="tab-count hidden" id="dump-count"></span>
+    </button>
+  </div>
+
+  <div class="search-row">
+    <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" id="search" class="search-input" placeholder="Search" aria-label="Search this tab" autocomplete="off" enterkeyhint="search">
+    <button type="button" class="clear-btn hidden" id="btn-clear-search" aria-label="Clear search">✕</button>
+  </div>
+
+  <!-- ─────────── Clips tab ─────────── -->
+  <section id="panel-clips" class="tab-panel" role="tabpanel" aria-labelledby="tab-clips">
+
+    <div class="add-row">
+      <button type="button" class="btn btn-primary" id="btn-paste">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>
+        Paste from clipboard
+      </button>
+      <button type="button" class="btn btn-ghost" id="btn-write">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/></svg>
+        Write
+      </button>
+    </div>
+
+    <section class="group hidden" id="group-clips-pinned" aria-labelledby="head-clips-pinned">
+      <h2 class="group-head" id="head-clips-pinned">Pinned <span class="count" id="count-clips-pinned"></span></h2>
+      <div class="cards" id="list-clips-pinned"></div>
+    </section>
+
+    <section class="group hidden" id="group-clips-recent" aria-labelledby="head-clips-recent">
+      <h2 class="group-head" id="head-clips-recent">Recent</h2>
+      <div class="cards" id="list-clips-recent"></div>
+    </section>
+
+    <div class="empty hidden" id="empty-clips">
+      <p class="empty-title">Nothing here yet.</p>
+      <p class="empty-desc">Copy something, then tap Paste.</p>
+    </div>
+
+    <div class="empty hidden" id="empty-clips-search">
+      <p class="empty-title">No matching clips.</p>
+    </div>
+
+  </section>
+
+  <!-- ─────────── Dump tab ─────────── -->
+  <section id="panel-dump" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-dump">
+
+    <div class="dump-input-row">
+      <textarea id="dump-input" class="text-area dump-textarea" rows="3" placeholder="Dump a thought…" maxlength="5000" aria-label="New dump entry"></textarea>
+      <div class="dump-input-foot">
+        <span class="hint" id="dump-count-hint"></span>
+        <button type="button" class="btn btn-primary" id="btn-dump-add">Add</button>
+      </div>
+    </div>
+
+    <section class="group hidden" id="group-dump-pinned" aria-labelledby="head-dump-pinned">
+      <h2 class="group-head" id="head-dump-pinned">Pinned <span class="count" id="count-dump-pinned"></span></h2>
+      <div class="cards" id="list-dump-pinned"></div>
+    </section>
+
+    <div id="dump-groups"></div>
+
+    <div class="empty hidden" id="empty-dump">
+      <p class="empty-title">Cleared.</p>
+      <p class="empty-desc">Start typing.</p>
+    </div>
+
+    <div class="empty hidden" id="empty-dump-search">
+      <p class="empty-title">No matching entries.</p>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- ─────────── Sheet: edit / write ─────────── -->
+<div class="sheet-backdrop hidden" id="sheet-edit">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+    <div class="sheet-head">
+      <button type="button" class="text-btn" data-close-sheet>Cancel</button>
+      <h2 class="sheet-title" id="edit-title">Write</h2>
+      <button type="button" class="text-btn strong" id="btn-save-edit">Save</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field-label hidden" for="edit-label" id="edit-label-wrap">Label <span class="opt">(optional)</span></label>
+      <input type="text" id="edit-label" class="text-input hidden" placeholder="e.g. Office address" maxlength="40" autocomplete="off">
+
+      <label class="field-label" for="edit-text">Text</label>
+      <textarea id="edit-text" class="text-area" rows="7" placeholder="Paste or type here"></textarea>
+      <p class="hint" id="edit-count">0 characters</p>
+
+      <label class="check-row">
+        <input type="checkbox" id="edit-pinned">
+        <span>Pin <span class="opt">(kept past the retention period)</span></span>
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── Sheet: full view ─────────── -->
+<div class="sheet-backdrop hidden" id="sheet-view">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="view-title">
+    <div class="sheet-head">
+      <button type="button" class="text-btn" data-close-sheet>Close</button>
+      <h2 class="sheet-title" id="view-title">Full text</h2>
+      <button type="button" class="text-btn strong" id="btn-view-copy">Copy</button>
+    </div>
+    <div class="sheet-body">
+      <p class="hint" id="view-hint">If copy doesn't work, press and hold the text below.</p>
+      <textarea id="view-text" class="text-area mono" rows="12" readonly></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── Sheet: settings ─────────── -->
+<div class="sheet-backdrop hidden" id="sheet-settings">
+  <div class="sheet tall" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="sheet-head">
+      <span class="text-btn ghosted" aria-hidden="true">Close</span>
+      <h2 class="sheet-title" id="settings-title">Settings</h2>
+      <button type="button" class="text-btn strong" data-close-sheet>Close</button>
+    </div>
+    <div class="sheet-body">
+
+      <h3 class="sec-head">Text size</h3>
+      <p class="sec-desc">Six steps. Buttons stay the same size — only text changes.</p>
+      <div class="seg" role="group" aria-label="Text size" id="fontstep-group">
+        <button type="button" class="seg-btn" data-step="1">6</button>
+        <button type="button" class="seg-btn" data-step="2">8</button>
+        <button type="button" class="seg-btn" data-step="3">10</button>
+        <button type="button" class="seg-btn" data-step="4">12</button>
+        <button type="button" class="seg-btn" data-step="5">14</button>
+        <button type="button" class="seg-btn" data-step="6">17</button>
+      </div>
+      <button type="button" class="link-btn" id="btn-fontstep-reset">Reset to default</button>
+
+      <h3 class="sec-head">Retention</h3>
+      <p class="sec-desc">How long an untouched item stays before it's archived and cleared. Pinned items never expire.</p>
+      <div class="seg" role="group" aria-label="Retention period" id="retention-group">
+        <button type="button" class="seg-btn" data-retention="7">7d</button>
+        <button type="button" class="seg-btn" data-retention="14">14d</button>
+        <button type="button" class="seg-btn" data-retention="30">30d</button>
+        <button type="button" class="seg-btn" data-retention="0">Never</button>
+      </div>
+      <button type="button" class="btn btn-ghost" id="btn-clear-expired">Clear expired now</button>
+      <p class="hint" id="cleanup-line">Last cleanup: never</p>
+
+      <h3 class="sec-head">Clips</h3>
+      <label class="check-row">
+        <input type="checkbox" id="set-merge">
+        <span>Merge duplicates <span class="opt">(bump to top instead of stacking)</span></span>
+      </label>
+
+      <h3 class="sec-head">Shortcut</h3>
+      <p class="sec-desc">Add this address to the iOS Shortcuts app to save clipboard text with one tap.</p>
+      <div class="url-box"><code id="app-url">…</code></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-url">Copy address</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-open-guide">How to make one</button>
+      </div>
+
+      <h3 class="sec-head">Run mode</h3>
+      <p class="mode-line" id="mode-line">Checking…</p>
+      <p class="sec-desc">
+        iOS keeps <b>Home Screen app</b> and <b>Safari</b> storage separate. The Shortcut opens in Safari.
+        Turning on <b>Sync</b> below merges both automatically through GitHub — if it's on, the buttons below are hidden since they're no longer needed.
+      </p>
+      <button type="button" class="btn btn-ghost" id="btn-pull-other">Import from the other mode</button>
+      <p class="hint" id="pull-other-hint">May not work on every iOS version.</p>
+
+      <h3 class="sec-head">Storage</h3>
+      <p class="mode-line" id="storage-line">Checking…</p>
+      <p class="sec-desc">Requests long-term storage from the browser so Tide's data is less likely to be cleared under storage pressure.</p>
+
+      <h3 class="sec-head">Sync</h3>
+      <p class="sec-desc">Merge clips and dumps from your other iPhone or iPad. Data is stored in a private GitHub repository.</p>
+
+      <label class="check-row spaced">
+        <input type="checkbox" id="sync-toggle">
+        <span>Turn on sync</span>
+      </label>
+
+      <label class="field-label" for="sync-token">Token <span class="opt">(GitHub Personal Access Token)</span></label>
+      <input type="password" id="sync-token" class="text-input" placeholder="Paste token" autocomplete="off">
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-sync-token-save">Save token</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-sync-token-clear">Clear token</button>
+      </div>
+      <p class="hint" id="sync-token-display">No token saved</p>
+
+      <label class="field-label" for="sync-context-name">This device/app's name</label>
+      <input type="text" id="sync-context-name" class="text-input" placeholder="e.g. iphone safari / iphone app / ipad" maxlength="40" autocomplete="off">
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-sync-context-save">Save name</button>
+      </div>
+      <p class="hint" id="sync-context-note">The same iPhone can have two different names — Safari and the Home Screen app register separately, and that's normal.</p>
+
+      <p class="mode-line" id="sync-status-line">Last synced: never</p>
+      <p class="mode-line" id="sync-outbox-line">0 pending</p>
+      <p class="mode-line warn hidden" id="sync-error-line"></p>
+
+      <button type="button" class="btn btn-ghost" id="btn-sync-now">Sync now</button>
+
+      <h3 class="sec-head">Backup</h3>
+      <p class="sec-desc">Tide's data lives only on this device. Save a backup file to iCloud Drive now and then.</p>
+      <p class="mode-line" id="backup-line">Checking…</p>
+      <div class="btn-row col">
+        <button type="button" class="btn btn-ghost" id="btn-export-json">Export JSON backup</button>
+        <button type="button" class="btn btn-ghost" id="btn-import-json">Restore from JSON</button>
+        <button type="button" class="btn btn-ghost" id="btn-export-csv">Export CSV</button>
+      </div>
+      <input type="file" id="file-import" accept=".json,application/json" hidden>
+
+      <div class="danger-zone">
+        <h3 class="sec-head danger">Danger zone</h3>
+        <p class="sec-desc">Hard to undo. Back up first.</p>
+        <button type="button" class="btn btn-danger" id="btn-wipe">Delete all</button>
+      </div>
+
+      <p class="version-note">Tide · Data stays on this device unless Sync is on</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── Sheet: shortcut guide ─────────── -->
+<div class="sheet-backdrop hidden" id="sheet-guide">
+  <div class="sheet tall" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="sheet-head">
+      <span class="text-btn ghosted" aria-hidden="true">Close</span>
+      <h2 class="sheet-title" id="guide-title">Make a Shortcut</h2>
+      <button type="button" class="text-btn strong" data-close-sheet>Close</button>
+    </div>
+    <div class="sheet-body">
+      <p class="sec-desc">Copy → one tap → saved automatically. Set it up once.</p>
+
+      <h3 class="sec-head">1 · Build the "capture" shortcut</h3>
+      <ol class="steps">
+        <li>Open the Shortcuts app and tap <b>+</b> in the top right.</li>
+        <li>Add <b>Get Clipboard</b>.</li>
+        <li>Add <b>URL Encode</b>, with input set to the clipboard result.</li>
+        <li>Add <b>Text</b>, paste the address below, then append the previous step's result to the end.
+          <div class="url-box"><code id="guide-url">…</code></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-url2">Copy address</button>
+        </li>
+        <li>Add <b>Open URLs</b> with input set to the Text result.</li>
+        <li>Save it as <b>Add to Tide</b>.</li>
+      </ol>
+
+      <h3 class="sec-head">2 · Register a way to run it <span class="opt">(pick one)</span></h3>
+      <ul class="steps">
+        <li><b>Home Screen</b> — Share → Add to Home Screen</li>
+        <li><b>Back Tap</b> — Settings → Accessibility → Touch → Back Tap → Double Tap → <b>Add to Tide</b></li>
+        <li><b>Control Center</b> — Settings → Control Center → add Shortcuts</li>
+      </ul>
+
+      <h3 class="sec-head">Good to know</h3>
+      <ul class="steps">
+        <li>Very long text may be cut off by URL length limits — open the app and paste directly for those.</li>
+        <li>Running the Shortcut opens Tide briefly, then saves. You can switch straight back.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── Card menu ─────────── -->
+<div class="sheet-backdrop hidden" id="sheet-menu">
+  <div class="sheet menu" role="dialog" aria-modal="true" aria-label="Item menu">
+    <div class="menu-preview" id="menu-preview"></div>
+    <div class="menu-list" id="menu-list"></div>
+    <button type="button" class="btn btn-ghost menu-cancel" data-close-sheet>Cancel</button>
+  </div>
+</div>
+
+<!-- ─────────── Confirm modal ─────────── -->
+<div class="modal-backdrop hidden" id="modal-confirm">
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
+    <h2 class="modal-title" id="confirm-title">Confirm</h2>
+    <p class="modal-desc" id="confirm-desc"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="btn-confirm-no">Cancel</button>
+      <button type="button" class="btn btn-danger" id="btn-confirm-yes">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap" role="status" aria-live="polite"></div>
+
+<!-- Cross-device sync module (shared, relative path) -->
+<script src="../shared/v1/sync-global.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="tide">
+  <!-- tide app icon
+       배경: Soft Rose Pink #EFB3C1 (대표색)
+       파도: Deep Rose #8A4257 — 비문자 그래픽 대비 3.97 (기준 3.0 이상)
+       iOS가 모서리를 알아서 깎으므로 원본은 정사각형 그대로 둡니다. -->
+  <rect width="512" height="512" fill="#EFB3C1"/>
+  <g fill="none" stroke="#8A4257" stroke-width="32" stroke-linecap="round">
+    <path d="M156 176 q25 -20 50 0 t50 0 t50 0 t50 0"/>
+    <path d="M106 256 q25 -20 50 0 t50 0 t50 0 t50 0 t50 0 t50 0"/>
+    <path d="M156 336 q25 -20 50 0 t50 0 t50 0 t50 0"/>
+  </g>
+</svg>

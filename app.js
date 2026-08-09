@@ -1507,7 +1507,8 @@ function bindSync() {
     toast('Token saved.', 'ok');
   });
   el['btn-sync-token-clear'].addEventListener('click', async () => {
-    const ok = await confirmAsk('Clear the token?', 'Sync will turn off. You’ll need to paste a token again to turn it back on.', 'Clear');
+    // The token key is per-origin, so Atlas and Trace read the same saved value.
+    const ok = await confirmAsk('Clear the token?', 'Atlas and Trace share this token, so their sync stops too. You’ll need to paste a token again to turn it back on.', 'Clear');
     if (!ok) return;
     setSyncToken('');
     setSyncEnabled(false);

@@ -7,7 +7,7 @@
      already installed this app.
    ========================================================================== */
 
-const CACHE = 'tide-v4';
+const CACHE = 'tide-v5';
 
 /* Caches with this prefix are never deleted here — they're the mirror
    used to carry items between the Home Screen app and Safari (see

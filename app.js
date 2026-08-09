@@ -511,8 +511,8 @@ async function pullFromOtherMode() {
     toast('Nothing found from ' + modeName(other) + '.', 'warn', 4500);
     return;
   }
-  const have = new Set(state.items.map(it => it.kind + ' ' + it.text));
-  const fresh = normalize(data).items.filter(it => !have.has(it.kind + ' ' + it.text));
+  const have = new Set(state.items.map(it => it.kind + '\u0000' + it.text));
+  const fresh = normalize(data).items.filter(it => !have.has(it.kind + '\u0000' + it.text));
   if (fresh.length === 0) {
     toast('Nothing new to import.', 'ok', 3000);
     return;

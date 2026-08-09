@@ -7,7 +7,7 @@
      already installed this app.
    ========================================================================== */
 
-const CACHE = 'tide-v2';
+const CACHE = 'tide-v3';
 
 /* Caches with this prefix are never deleted here — they're the mirror
    used to carry items between the Home Screen app and Safari (see
@@ -46,7 +46,7 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(keys => Promise.all(
         keys
-          .filter(k => k !== CACHE && !k.startsWith(KEEP_PREFIX))
+          .filter(k => k.startsWith('tide-') && k !== CACHE && !k.startsWith(KEEP_PREFIX))
           .map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())

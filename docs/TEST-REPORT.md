@@ -2,7 +2,7 @@
 
 최초 검토일: 2026-08-05
 업데이트: 2026-08-05 (배포 후 실기기 리뷰 반영, sw.js `tide-v1` → `tide-v2`)
-검토 방법: 로컬 정적 서버(`Deliverable/`를 GitHub Pages 하위 경로 구조 그대로 재현) + 실제 배포 도메인(`https://jennie-verse.github.io/tide/`)에서 브라우저로 직접 조작, 콘솔에서 핵심 함수 직접 호출로 교차 검증.
+당시 검토 방법: 별도 `Deliverable/` staging과 실제 배포 도메인에서 확인했습니다. 현재 로컬 재실행은 `WebApp/Published/`에서 `python3 -m http.server 4177`을 실행한 뒤 `http://localhost:4177/tide/`를 사용합니다. 이 방식이 `tide/`와 `shared/`가 형제인 GitHub Pages 경로를 재현합니다.
 
 이 문서는 세 구간으로 나눕니다.
 - **통과(Passed)** — 이 환경에서 직접 확인 완료

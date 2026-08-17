@@ -49,11 +49,19 @@ function isoOr(v) {
 }
 function cmpAsc(a, b) { return new Date(a).getTime() - new Date(b).getTime(); }
 function cmpDesc(a, b) { return new Date(b).getTime() - new Date(a).getTime(); }
+function localDateStamp(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return todayStamp();
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function validDateStamp(value) { return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')); }
 
 /* ── 2. store: read / write / normalize ────────────────────────────────── */
 
 let state = { version: CONFIG.schema, app: 'tide', items: [], deleted: [], settings: { ...CONFIG.defaults } };
 let storageOK = true;
+let pendingJournalDeletes = [];
 
 /**
  * Normalizes one item. `opts.fallbackTouchedAt`, if given, is used ONLY when
@@ -76,6 +84,7 @@ function normalizeItem(it, opts = {}) {
     type: kind === 'clip' ? (TYPE_LABEL[it.type] ? it.type : detectType(text)) : '',
     pinned: it.pinned === true,
     createdAt,
+    journalDate: validDateStamp(it.journalDate) ? it.journalDate : localDateStamp(createdAt),
     lastTouchedAt: it.lastTouchedAt ? isoOr(it.lastTouchedAt) : fallbackTouched,
     updatedAt: it.updatedAt ? isoOr(it.updatedAt) : createdAt,
     usedAt: kind === 'clip' && it.usedAt ? isoOr(it.usedAt) : null,
@@ -141,6 +150,10 @@ function saveState() {
   }
   writeMirror();
   if (isSyncEnabled()) schedulePush();
+  if (pendingJournalDeletes.length) {
+    const deletes = pendingJournalDeletes.splice(0);
+    deletes.forEach(entry => queueJournalItem(entry.item, { deleted: true, updatedAt: entry.updatedAt }));
+  }
 }
 
 /**
@@ -196,7 +209,10 @@ function trimEmergency() {
   const unpinned = state.items.filter(it => !it.pinned).sort((a, b) => cmpAsc(a.lastTouchedAt, b.lastTouchedAt));
   const over = unpinned.length - CONFIG.emergencyCap;
   if (over <= 0) return 0;
-  const doomed = new Set(unpinned.slice(0, over).map(it => it.id));
+  const removed = unpinned.slice(0, over);
+  const deletedAt = nowIso();
+  pendingJournalDeletes.push(...removed.map(item => ({ item, updatedAt: deletedAt })));
+  const doomed = new Set(removed.map(it => it.id));
   state.items = state.items.filter(it => !doomed.has(it.id));
   return doomed.size;
 }
@@ -221,7 +237,9 @@ function addItem(kind, rawText, opts = {}) {
   if (kind === 'clip' && state.settings.mergeDuplicates) {
     const dup = state.items.find(it => it.kind === 'clip' && it.text === text);
     if (dup) {
+      const previousDate = validDateStamp(dup.journalDate) ? dup.journalDate : localDateStamp(dup.createdAt);
       dup.createdAt = nowIso();
+      dup.journalDate = localDateStamp(new Date());
       if (label) dup.label = label;
       if (pinned && !dup.pinned) {
         if (countPinned() >= CONFIG.maxPinned) {
@@ -233,6 +251,7 @@ function addItem(kind, rawText, opts = {}) {
       touch(dup);
       const removed = trimEmergency();
       saveState();
+      queueJournalItem(dup, { previousDate });
       return { item: dup, merged: true, truncated, removed };
     }
   }
@@ -247,13 +266,14 @@ function addItem(kind, rawText, opts = {}) {
     id: makeId(), kind, text, label,
     type: kind === 'clip' ? detectType(text) : '',
     pinned,
-    createdAt: now, lastTouchedAt: now, updatedAt: now,
+    createdAt: now, journalDate: localDateStamp(new Date()), lastTouchedAt: now, updatedAt: now,
     usedAt: null, useCount: 0, archivedAt: null
   };
   state.items.unshift(item);
 
   const removed = trimEmergency();
   saveState();
+  queueJournalItem(item);
   return { item, merged: false, truncated, removed };
 }
 
@@ -266,6 +286,7 @@ function copyItem(item) {
     }
     touch(item);
     saveState();
+    queueJournalItem(item);
     return true;
   });
 }
@@ -281,6 +302,7 @@ function updateItem(item, { text, label, pinned }) {
   touch(item);
   const removed = trimEmergency();
   saveState();
+  queueJournalItem(item);
   return removed;
 }
 
@@ -294,6 +316,7 @@ function togglePin(item) {
   if (!item.pinned) touch(item);
   trimEmergency();
   saveState();
+  queueJournalItem(item);
   return true;
 }
 
@@ -308,12 +331,15 @@ function moveItemKind(item, toKind) {
   }
   touch(item);
   saveState();
+  queueJournalItem(item);
 }
 
 function deleteItem(item) {
+  const deletedAt = nowIso();
   state.items = state.items.filter(it => it.id !== item.id);
-  state.deleted = (state.deleted || []).concat([{ id: item.id, at: nowIso() }]);
+  state.deleted = (state.deleted || []).concat([{ id: item.id, at: deletedAt }]);
   saveState();
+  queueJournalItem(item, { deleted: true, updatedAt: deletedAt });
 }
 
 /* ── 5. retention (plan 4장) ──────────────────────────────────────────── */
@@ -412,6 +438,7 @@ async function performCleanup(opts = {}) {
     state.deleted = (state.deleted || []).concat(leftover.map(it => ({ id: it.id, at: now })));
     state.items = state.items.filter(it => !ids.has(it.id));
     saveState();
+    leftover.forEach(item => queueJournalItem(item, { deleted: true, updatedAt: now }));
   }
 
   const retentionDays = state.settings.retentionDays;
@@ -440,6 +467,7 @@ async function performCleanup(opts = {}) {
     state.items = state.items.filter(it => !ids.has(it.id));
     recordCleanupTime();
     saveState();
+    expired.forEach(item => queueJournalItem(item, { deleted: true, updatedAt: now }));
     toast(expired.length + ' item' + (expired.length === 1 ? '' : 's') + ' archived and cleared.', null, 3200);
     render();
     return;
@@ -460,6 +488,7 @@ async function performCleanup(opts = {}) {
   state.items = state.items.filter(it => !ids.has(it.id));
   recordCleanupTime();
   saveState();
+  expired.forEach(item => queueJournalItem(item, { deleted: true, updatedAt: now }));
   render();
   toastUndo(expired.length + ' item(s) cleared.');
 }
@@ -647,7 +676,9 @@ function cache() {
     'mode-line', 'btn-pull-other', 'pull-other-hint', 'storage-line', 'backup-line',
     'sync-toggle', 'sync-token', 'btn-sync-token-save', 'btn-sync-token-clear', 'sync-token-display',
     'sync-context-name', 'btn-sync-context-save', 'sync-context-note',
-    'sync-status-line', 'sync-outbox-line', 'sync-error-line', 'btn-sync-now'
+    'sync-status-line', 'sync-outbox-line', 'sync-error-line', 'btn-sync-now',
+    'journal-toggle', 'journal-status-line', 'journal-error-line',
+    'journal-from', 'journal-to', 'btn-journal-preview', 'btn-journal-import', 'journal-backfill-status'
   ].forEach(id => { el[id] = document.getElementById(id); });
 }
 
@@ -890,6 +921,8 @@ function restoreSnapshot() {
     state.deleted = Array.isArray(snap.deleted) ? snap.deleted : state.deleted;
     if (snap.settings) state.settings = snap.settings;
     saveState();
+    const restoredAt = nowIso();
+    state.items.forEach(item => queueJournalItem(item, { updatedAt: restoredAt }));
     refreshSettingsUI();
     render();
     toast('Undone.', 'ok');
@@ -1237,6 +1270,7 @@ function importJson(file) {
     const next = normalize(data);
     next.items.forEach(it => { it.lastTouchedAt = restoreTime; it.updatedAt = restoreTime; it.archivedAt = null; });
 
+    const previousItems = new Map(state.items.map(item => [item.id, item]));
     const keepIds = new Set(next.items.map(it => it.id));
     const removalTombs = state.items.filter(it => !keepIds.has(it.id)).map(it => ({ id: it.id, at: restoreTime }));
     state.items = next.items;
@@ -1244,6 +1278,11 @@ function importJson(file) {
     state.settings = next.settings;
     trimEmergency();
     saveState();
+    state.items.forEach(item => queueJournalItem(item));
+    removalTombs.forEach(tomb => {
+      const original = previousItems.get(tomb.id);
+      if (original) queueJournalItem(original, { deleted: true, updatedAt: tomb.at });
+    });
     refreshSettingsUI();
     render();
     toastUndo('Restored. ' + state.items.length + ' item(s).');
@@ -1261,9 +1300,11 @@ async function wipeAll() {
   if (!ok2) return;
   snapshot();
   const now = nowIso();
+  const removed = state.items.slice();
   state.deleted = (state.deleted || []).concat(state.items.map(it => ({ id: it.id, at: now })));
   state.items = [];
   saveState();
+  removed.forEach(item => queueJournalItem(item, { deleted: true, updatedAt: now }));
   render();
   toastUndo('Deleted everything.');
 }
@@ -1554,6 +1595,208 @@ async function initSync() {
   runAutoCleanupIfDue();
 }
 
+/* ── Journal projection (independent opt-in; never blocks Tide saves) ─── */
+
+const JOURNAL = {
+  enabledKey: 'tide.journalEnabled.v1',
+  moduleUrl: '../shared/v2/journal.js'
+};
+
+let journalClientPromise = null;
+let journalState = { status: 'not reported', pendingCount: 0, errorCode: '' };
+let journalBackfillPreview = null;
+
+function isJournalEnabled() {
+  try { return localStorage.getItem(JOURNAL.enabledKey) === '1'; } catch (e) { return false; }
+}
+function setJournalEnabled(value) {
+  try { localStorage.setItem(JOURNAL.enabledKey, value ? '1' : '0'); } catch (e) { /* ignore */ }
+}
+function journalTitle(item) {
+  const firstLine = String(item.text || '').split('\n').find(line => line.trim()) || '';
+  if (item.kind === 'clip') return String(item.label || '').trim() || firstLine.trim() || 'Untitled clip';
+  return firstLine.trim() || 'Untitled dump';
+}
+function tideJournalRecord(item, options = {}) {
+  return {
+    id: item.id,
+    kind: item.kind,
+    at: item.createdAt,
+    updatedAt: options.updatedAt || item.updatedAt || item.lastTouchedAt || item.createdAt,
+    deleted: options.deleted === true,
+    title: journalTitle(item),
+    data: {
+      text: item.text,
+      label: item.kind === 'clip' ? item.label : '',
+      type: item.kind === 'clip' ? item.type : '',
+      pinned: item.pinned === true,
+      createdAt: item.createdAt,
+      lastTouchedAt: item.lastTouchedAt,
+      usedAt: item.kind === 'clip' ? item.usedAt : null,
+      useCount: item.kind === 'clip' ? Number(item.useCount || 0) : 0
+    }
+  };
+}
+async function getJournalClient() {
+  if (journalClientPromise) {
+    const existing = await journalClientPromise;
+    if (existing) return existing;
+    journalClientPromise = null;
+  }
+  journalClientPromise = (async () => {
+    const context = getSyncContextId();
+    if (!context) return null;
+    const module = await import(JOURNAL.moduleUrl);
+    return module.createJournalClient({
+      app: 'tide', context, namespace: 'tide-journal',
+      isEnabled: isJournalEnabled,
+      resolveConfig: async () => {
+        const token = getSyncToken();
+        if (!token) throw Object.assign(new Error('Journal authentication is unavailable.'), { type: 'auth', code: 'AUTH' });
+        return syncConfig();
+      },
+      onState: stateUpdate => {
+        journalState = { ...journalState, ...stateUpdate };
+        refreshJournalUI();
+      }
+    });
+  })().catch(() => null);
+  return journalClientPromise;
+}
+function queueJournalItem(item, options = {}) {
+  if (!isJournalEnabled() || !item) return;
+  Promise.resolve().then(async () => {
+    const client = await getJournalClient();
+    if (!client) {
+      journalState = { status: 'error', errorCode: 'MODULE_UNAVAILABLE', pendingCount: journalState.pendingCount || 0 };
+      refreshJournalUI();
+      return;
+    }
+    await client.enqueue(tideJournalRecord(item, options), {
+      date: validDateStamp(item.journalDate) ? item.journalDate : localDateStamp(item.createdAt),
+      previousDate: options.previousDate
+    });
+  }).catch(() => {
+    journalState = { ...journalState, status: 'error', errorCode: 'QUEUE_FAILED' };
+    refreshJournalUI();
+  });
+}
+async function reportJournalStatus(extra = {}) {
+  const client = await getJournalClient();
+  if (!client) return false;
+  try {
+    await client.reportStatus({ journalEnabled: isJournalEnabled(), ...extra });
+    return true;
+  } catch (e) {
+    journalState = { ...journalState, status: 'error', errorCode: 'STATUS_FAILED' };
+    refreshJournalUI();
+    return false;
+  }
+}
+async function refreshJournalUI() {
+  if (!el['journal-toggle']) return;
+  el['journal-toggle'].checked = isJournalEnabled();
+  const client = await getJournalClient();
+  if (client) {
+    try { journalState.pendingCount = await client.pendingCount(); } catch (e) { /* retain last safe count */ }
+  }
+  el['journal-status-line'].textContent = isJournalEnabled()
+    ? 'Journal: ' + journalState.status + ' · ' + journalState.pendingCount + ' pending'
+    : 'Journal: off';
+  el['journal-error-line'].textContent = journalState.errorCode ? 'Last code: ' + journalState.errorCode : '';
+  el['journal-error-line'].classList.toggle('hidden', !journalState.errorCode);
+}
+function backfillDayCount(from, to) {
+  const start = new Date(from + 'T12:00:00');
+  const end = new Date(to + 'T12:00:00');
+  if (isNaN(start) || isNaN(end) || start > end) return 0;
+  return Math.floor((end - start) / 86400000) + 1;
+}
+function backfillMonths(from, to) {
+  const cursor = new Date(from.slice(0, 7) + '-01T12:00:00');
+  const end = new Date(to.slice(0, 7) + '-01T12:00:00');
+  const months = [];
+  while (cursor <= end) {
+    months.push(localDateStamp(cursor).slice(0, 7));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return months;
+}
+async function collectJournalBackfill(from, to) {
+  const byId = new Map();
+  state.items.forEach(item => {
+    const itemDate = validDateStamp(item.journalDate) ? item.journalDate : localDateStamp(item.createdAt);
+    if (itemDate >= from && itemDate <= to) byId.set(item.id, item);
+  });
+  if (window.SharedSync && getSyncToken()) {
+    for (const month of backfillMonths(from, to)) {
+      try {
+        const file = await window.SharedSync.readFile(syncConfig(), SYNC.archiveDir + '/' + month + '.json');
+        if (!file.exists || !file.content) continue;
+        const rows = JSON.parse(file.content);
+        if (!Array.isArray(rows)) continue;
+        rows.forEach(raw => {
+          if (!raw || !raw.id || typeof raw.text !== 'string') return;
+          const item = normalizeItem(raw);
+          const itemDate = localDateStamp(item.createdAt);
+          if (itemDate >= from && itemDate <= to && !byId.has(item.id)) byId.set(item.id, item);
+        });
+      } catch (e) { /* one unavailable archive month must not block the rest */ }
+    }
+  }
+  return [...byId.values()].sort((a, b) => cmpAsc(a.createdAt, b.createdAt));
+}
+async function previewJournalBackfill() {
+  const from = el['journal-from'].value;
+  const to = el['journal-to'].value;
+  const days = backfillDayCount(from, to);
+  if (!days) { toast('Choose a valid date range.', 'warn'); return; }
+  el['journal-backfill-status'].textContent = 'Checking local items and available archives…';
+  const items = await collectJournalBackfill(from, to);
+  journalBackfillPreview = { from, to, items };
+  el['journal-backfill-status'].textContent = days + ' day(s) · ' + items.length + ' record(s) available';
+}
+async function importJournalBackfill() {
+  if (!isJournalEnabled()) { toast('Turn on Include in journal first.', 'warn'); return; }
+  const from = el['journal-from'].value;
+  const to = el['journal-to'].value;
+  if (!journalBackfillPreview || journalBackfillPreview.from !== from || journalBackfillPreview.to !== to) {
+    await previewJournalBackfill();
+  }
+  const preview = journalBackfillPreview;
+  if (!preview) return;
+  const ok = await confirmAsk('Add existing history?',
+    preview.items.length + ' record(s) from ' + preview.from + ' through ' + preview.to + ' will be added to Daybook.', 'Import');
+  if (!ok) return;
+  const client = await getJournalClient();
+  if (!client) { toast('Journal module is unavailable. Tide data was not changed.', 'err'); return; }
+  const totalDates = backfillDayCount(preview.from, preview.to);
+  await reportJournalStatus({ backfill: { status: 'running', from: preview.from, to: preview.to,
+    processedDates: 0, totalDates, updatedAt: nowIso() } });
+  for (const item of preview.items) {
+    await client.enqueue(tideJournalRecord(item), {
+      date: validDateStamp(item.journalDate) ? item.journalDate : localDateStamp(item.createdAt)
+    });
+  }
+  const result = await client.flush();
+  const status = result.error ? 'partial' : 'complete';
+  await reportJournalStatus({ backfill: { status, from: preview.from, to: preview.to,
+    processedDates: result.error ? 0 : totalDates, totalDates, updatedAt: nowIso() } });
+  el['journal-backfill-status'].textContent = result.error
+    ? 'Import paused · pending records will retry when online'
+    : 'Imported ' + result.written + ' record(s)';
+  toast(result.error ? 'History queued. It will retry when online.' : 'Existing history added.', result.error ? 'warn' : 'ok', 4000);
+}
+async function initJournal() {
+  const today = todayStamp();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 3);
+  el['journal-from'].value = localDateStamp(start);
+  el['journal-to'].value = today;
+  refreshJournalUI();
+  if (getSyncContextId() && getSyncToken()) reportJournalStatus();
+}
+
 /* ── 20. bind ─────────────────────────────────────────────────────────── */
 
 function bind() {
@@ -1694,6 +1937,28 @@ function bind() {
 
   bindSync();
 
+  el['journal-toggle'].addEventListener('change', async () => {
+    const turningOn = el['journal-toggle'].checked;
+    if (turningOn && !getSyncToken()) {
+      el['journal-toggle'].checked = false;
+      toast('Save a token in Sync first.', 'warn', 4000);
+      return;
+    }
+    if (turningOn && !(await ensureSyncContextId())) {
+      el['journal-toggle'].checked = false;
+      toast('Save this device/app name first.', 'warn', 4000);
+      return;
+    }
+    journalClientPromise = null;
+    setJournalEnabled(turningOn);
+    journalState = { status: turningOn ? 'ready' : 'disabled', pendingCount: 0, errorCode: '' };
+    await reportJournalStatus({ enabledAt: turningOn ? nowIso() : undefined });
+    refreshJournalUI();
+    toast(turningOn ? 'New Tide activity will be included in Daybook.' : 'Journal inclusion turned off.', 'ok', 3600);
+  });
+  el['btn-journal-preview'].addEventListener('click', previewJournalBackfill);
+  el['btn-journal-import'].addEventListener('click', importJournalBackfill);
+
   window.addEventListener('storage', ev => {
     if (ev.key !== CONFIG.storageKey) return;
     loadState(); refreshSettingsUI(); render();
@@ -1723,6 +1988,7 @@ function init() {
   registerSW();
   ensurePersistentStorage();
   initSync();
+  initJournal();
 }
 
 document.addEventListener('DOMContentLoaded', init);

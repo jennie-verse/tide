@@ -244,6 +244,31 @@
 
       <button type="button" class="btn btn-ghost" id="btn-sync-now">Sync now</button>
 
+      <h3 class="sec-head">Journal</h3>
+      <p class="sec-desc">Optionally send full Clips and Dumps to Daybook as a separate daily projection. This stays off until you choose it, even when Sync is on.</p>
+      <label class="check-row spaced">
+        <input type="checkbox" id="journal-toggle">
+        <span>Include in journal</span>
+      </label>
+      <p class="mode-line" id="journal-status-line">Journal: off</p>
+      <p class="mode-line warn hidden" id="journal-error-line"></p>
+
+      <h4 class="field-label">Add existing history</h4>
+      <p class="sec-desc">Runs only when you request it. Current items and available Tide archives are checked; archive metadata that no longer exists cannot be recovered.</p>
+      <div class="btn-row">
+        <label class="field-label" for="journal-from">From
+          <input type="date" id="journal-from" class="text-input">
+        </label>
+        <label class="field-label" for="journal-to">To
+          <input type="date" id="journal-to" class="text-input">
+        </label>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-journal-preview">Preview</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btn-journal-import">Import</button>
+      </div>
+      <p class="hint" id="journal-backfill-status">Default range: recent 3 months</p>
+
       <h3 class="sec-head">Backup</h3>
       <p class="sec-desc">Tide's data lives only on this device. Save a backup file to iCloud Drive now and then.</p>
       <p class="mode-line" id="backup-line">Checking…</p>

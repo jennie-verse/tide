@@ -7,7 +7,7 @@
      already installed this app.
    ========================================================================== */
 
-const CACHE = 'tide-v5';
+const CACHE = 'tide-v6';
 
 /* Caches with this prefix are never deleted here — they're the mirror
    used to carry items between the Home Screen app and Safari (see
@@ -26,7 +26,8 @@ const ASSETS = [
   './assets/fonts/lexend-400.woff2',
   './assets/fonts/lexend-700.woff2',
   '../shared/v1/sync-global.js',
-  '../shared/v1/sync.js'
+  '../shared/v1/sync.js',
+  '../shared/v2/journal.js'
 ];
 
 /* Install: pre-fetch app files. shared/v1 assets are outside this SW's

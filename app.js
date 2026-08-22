@@ -1319,7 +1319,6 @@ async function wipeAll() {
 
 const SYNC = {
   namespace: 'tide',
-  owner: 'jennie-verse',
   repo: 'webapp-data',
   branch: 'main',
   dirPath: 'tide',
@@ -1341,7 +1340,16 @@ function getSyncToken() { try { return localStorage.getItem(SYNC.tokenKey) || ''
 function setSyncToken(v) {
   try { if (v) localStorage.setItem(SYNC.tokenKey, v); else localStorage.removeItem(SYNC.tokenKey); } catch (e) { /* ignore */ }
 }
-function syncConfig() { return { owner: SYNC.owner, repo: SYNC.repo, token: getSyncToken(), branch: SYNC.branch }; }
+function pagesOwner(locationLike) {
+  const hostname = String((locationLike || location).hostname || '').toLowerCase();
+  const match = /^([a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?)\.github\.io$/.exec(hostname);
+  if (match) return match[1];
+  const error = new Error('Cannot determine the GitHub account from this deployment. Sync is disabled on custom domains until an account can be configured explicitly.');
+  error.type = 'configuration';
+  error.code = 'PAGES_OWNER_UNRESOLVED';
+  throw error;
+}
+function syncConfig() { return { owner: pagesOwner(location), repo: SYNC.repo, token: getSyncToken(), branch: SYNC.branch }; }
 async function resolveSyncConfig() { return syncConfig(); }
 function getSyncContextId() { try { return localStorage.getItem(SYNC.namespace + '.syncContextId'); } catch (e) { return null; } }
 function getSyncContextLabel() { try { return localStorage.getItem(SYNC.namespace + '.syncContextLabel') || ''; } catch (e) { return ''; } }
@@ -1358,6 +1366,7 @@ function describeSyncError(err) {
   if (err.type === 'network') return 'A network error stopped the request.';
   if (err.type === 'notfound') return 'The repository was not found. Check the name.';
   if (err.type === 'conflict') return 'A conflict happened and retrying failed.';
+  if (err.type === 'configuration') return err.message;
   return err.message || 'Unknown error';
 }
 function setSyncError(msg) { syncLastError = msg; }

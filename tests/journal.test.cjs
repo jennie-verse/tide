@@ -6,6 +6,14 @@ const vm = require('node:vm');
 
 function loadApp(locationOverride = {}) {
   const values = new Map();
+  let lastReader = null;
+  class TestFileReader {
+    readAsText(file) {
+      lastReader = this;
+      this.result = file.text;
+      this.done = Promise.resolve(this.onload());
+    }
+  }
   const context = vm.createContext({
     console,
     Date,
@@ -13,6 +21,7 @@ function loadApp(locationOverride = {}) {
     URL,
     Blob,
     File: class File {},
+    FileReader: TestFileReader,
     TextEncoder,
     setTimeout: () => 1,
     clearTimeout: () => {},
@@ -28,7 +37,7 @@ function loadApp(locationOverride = {}) {
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   vm.runInContext(source, context, { filename: 'app.js' });
-  return { context, source, values };
+  return { context, source, values, getLastReader: () => lastReader };
 }
 
 test('journal opt-in is independent and defaults off when normal sync is already on', () => {
@@ -125,4 +134,42 @@ test('retention preserves pinned items and removes only expired unpinned items',
     globalThis.expired = state.items.filter(item => isExpired(item, state.settings.retentionDays)).map(item => item.id);
   `, context);
   assert.deepEqual(Array.from(context.expired), ['x']);
+});
+
+test('backup restore replaces items, resets retention clocks, and records removals', async () => {
+  const { context, values, getLastReader } = loadApp();
+  context.confirmAsk = async () => true;
+  context.refreshSettingsUI = () => {};
+  context.render = () => {};
+  context.toastUndo = () => {};
+  vm.runInContext(`
+    state.items = [normalizeItem({
+      id: 'remove-me', kind: 'clip', text: 'local',
+      createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z'
+    })];
+    importJson({ text: JSON.stringify({
+      version: CONFIG.schema,
+      app: 'tide',
+      items: [{
+        id: 'restored', kind: 'dump', text: 'from backup',
+        createdAt: '2020-01-01T00:00:00.000Z',
+        lastTouchedAt: '2020-01-01T00:00:00.000Z',
+        updatedAt: '2020-01-01T00:00:00.000Z',
+        archivedAt: '2020-01-02T00:00:00.000Z'
+      }],
+      deleted: [],
+      settings: { retentionDays: 7 }
+    }) });
+  `, context);
+  await getLastReader().done;
+  vm.runInContext(`globalThis.restoredResult = {
+    item: state.items[0],
+    tomb: state.deleted.find(entry => entry.id === 'remove-me')
+  }`, context);
+
+  assert.equal(context.restoredResult.item.id, 'restored');
+  assert.equal(context.restoredResult.item.lastTouchedAt, context.restoredResult.item.updatedAt);
+  assert.equal(context.restoredResult.item.archivedAt, null);
+  assert.equal(context.restoredResult.tomb.at, context.restoredResult.item.updatedAt);
+  assert.equal(JSON.parse(values.get('tide.v1')).items[0].id, 'restored');
 });
